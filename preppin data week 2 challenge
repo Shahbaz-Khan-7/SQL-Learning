@@ -1,0 +1,38 @@
+--In the Transactions table, there is a Sort Code field which contains dashes. We need to remove these so just have a 6 digit string (hint)
+--Use the SWIFT Bank Code lookup table to bring in additional information about the SWIFT code and Check Digits of the receiving bank account (hint)
+--Add a field for the Country Code (hint)
+--Hint: all these transactions take place in the UK so the Country Code should be GB
+--Create the IBAN as above (hint)
+--Hint: watch out for trying to combine sting fields with numeric fields - check data types
+--Remove unnecessary fields
+-- iban = countrycode,check digits, swift code, sortcode, account number, 
+
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK02_SWIFT_CODES;
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK02_TRANSACTIONS;
+
+
+SELECT REPLACE(sort_code, '-', '') AS sortcode_without_hyphens, *,
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK02_TRANSACTIONS t
+join TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK02_SWIFT_CODES s
+on t.bank = s.bank;
+
+CREATE or REPLACE TEMPORARY TABLE PD_week2 AS SELECT
+'GB' AS country_code,
+REPLACE(t.sort_code, '-', '') AS sortcode_without_hyphens, t.*, swift_code, check_digits,
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK02_TRANSACTIONS t
+join TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK02_SWIFT_CODES s
+on t.bank = s.bank;
+
+--creating a temporary table which joins the 2 tables
+
+select * from PD_WEEK2;
+
+ALTER TABLE PD_WEEK2
+ADD IBAN VARCHAR(50); --creating iban column so i can edit it
+
+select * from PD_WEEK2;
+
+UPDATE PD_WEEK2
+SET IBAN = CONCAT(country_code, check_digits, swift_code, sortcode_without_hyphens, account_number);
+
+select transaction_id,IBAN from PD_WEEK2;

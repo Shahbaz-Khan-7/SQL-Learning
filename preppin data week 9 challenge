@@ -1,0 +1,129 @@
+--For the Transaction Path table:
+--Make sure field naming convention matches the other tables
+--i.e. instead of Account_From it should be Account From
+--Filter out the cancelled transactions
+--Split the flow into incoming and outgoing transactions 
+--Bring the data together with the Balance as of 31st Jan 
+--Work out the order that transactions occur for each account
+--Hint: where multiple transactions happen on the same day, assume the highest value transactions happen first
+--Use a running sum to calculate the Balance for each account on each day (hint)
+--The Transaction Value should be null for 31st Jan, as this is the starting balance
+
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_PATH;
+
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_DETAIL;
+
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_ACCOUNT_INFORMATION;
+
+-- Get incoming transactions with consistent columns
+WITH incoming_transactions AS (
+    SELECT 
+        ai.account_to AS account_number,
+        td.transaction_date AS balance_date,
+        td.value AS balance
+    FROM 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_DETAIL td
+    JOIN 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_PATH ai
+    ON 
+        td.transaction_id = ai.transaction_id
+    WHERE 
+        td.cancelled_ = 'N'
+),
+
+-- Get outgoing transactions with consistent columns
+outgoing_transactions AS (
+    SELECT 
+        ai.account_from AS account_number,
+        td.transaction_date AS balance_date,
+        td.value * -1 AS balance
+    FROM 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_DETAIL td
+    JOIN 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_PATH ai
+    ON 
+        td.transaction_id = ai.transaction_id
+    WHERE 
+        td.cancelled_ = 'N'
+),
+
+-- Account information
+account_information AS (
+    SELECT
+        ai.account_number,
+        ai.balance_date,
+        ai.balance
+    FROM
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_ACCOUNT_INFORMATION ai
+),
+
+-- Combine all CTEs using UNION ALL
+joined_table as (
+SELECT 
+    account_number,
+    balance_date,
+    balance
+FROM 
+    incoming_transactions
+
+UNION ALL
+
+SELECT 
+    account_number,
+    balance_date,
+    balance
+FROM 
+    outgoing_transactions
+
+UNION ALL
+
+SELECT 
+    account_number,
+    balance_date,
+    balance
+FROM 
+    account_information),
+
+-- Sort by balance_date ascending, then balance descending within each day for each account
+
+SortedTransactions AS (
+    SELECT 
+        account_number,
+        balance_date,
+        balance
+    FROM 
+        joined_table
+    ORDER BY 
+        balance_date ASC,
+        balance DESC
+),
+
+-- Step 3: Calculate running sum to get the balance on each day for each account
+
+RunningBalance AS (
+SELECT 
+        account_number,
+        balance_date,
+        balance,
+        SUM(balance) OVER (
+            PARTITION BY account_number 
+            ORDER BY balance_date ASC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS running_balance
+    FROM 
+        SortedTransactions
+)
+-- Final output showing the running balance for each account on each day
+SELECT 
+    account_number,
+    balance_date,
+    CASE 
+        WHEN balance_date = '2023-01-31' THEN NULL  -- Set to NULL for specified date
+        ELSE balance
+    END AS transaction_value,  -- Original transactional value
+    running_balance  -- Cumulative running balance for each account
+FROM 
+    RunningBalance
+ORDER BY 
+    account_number,
+    balance_date;

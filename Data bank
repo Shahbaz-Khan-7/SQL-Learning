@@ -1,0 +1,340 @@
+--SECTION A 
+select * from TIL_PLAYGROUND.CS4_DATA_BANK.REGIONS;
+select * from TIL_PLAYGROUND.CS4_DATA_BANK.CUSTOMER_NODES;
+select * from TIL_PLAYGROUND.CS4_DATA_BANK.CUSTOMER_TRANSACTIONS;
+
+--How many unique nodes are there on the Data Bank system?
+SELECT COUNT(DISTINCT (NODE_ID)) FROM CUSTOMER_NODES;
+
+--What is the number of nodes per region?
+
+SELECT COUNT(DISTINCT (NODE_ID)) 
+FROM CUSTOMER_NODES
+GROUP BY REGION_ID;
+
+--How many customers are allocated to each region?
+
+SELECT 
+     R.REGION_NAME,
+     COUNT(DISTINCT (CUSTOMER_ID)) AS NUMBER_OF_CUSTOMERS
+FROM CUSTOMER_NODES CN
+JOIN REGIONS R
+ON CN.REGION_ID = R.REGION_ID
+GROUP BY REGION_NAME;
+
+--How many days on average are customers reallocated to a different node?
+
+WITH days_in_node_table AS (
+SELECT 
+    customer_id,
+    node_id,
+    SUM(DATEDIFF('days',start_date, end_date)) AS sum_of_days_in_node
+FROM 
+    customer_nodes
+WHERE end_date != '9999-12-31'
+GROUP BY 
+    customer_id,node_id)
+
+select avg(sum_of_days_in_node) from days_in_node_table;
+
+--What is the median, 80th and 95th percentile for this same reallocation days metric for each region?
+
+WITH days_in_node_table AS (
+SELECT 
+    region_name,
+    customer_id,
+    node_id,
+    SUM(DATEDIFF('days',start_date, end_date)) AS sum_of_days_in_node
+FROM 
+    customer_nodes cn
+JOIN
+    regions r
+ON r.region_id = cn.region_id
+WHERE end_date != '9999-12-31'
+GROUP BY 
+    region_name,customer_id,node_id),
+    
+percentiles_table AS (
+    SELECT 
+        region_name,
+        ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY sum_of_days_in_node)) AS median,
+        ROUND(PERCENTILE_CONT(0.8) WITHIN GROUP (ORDER BY sum_of_days_in_node)) AS p80,
+        ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY sum_of_days_in_node)) AS p95
+    FROM 
+        days_in_node_table
+    GROUP BY 
+        region_name
+)
+
+select * from percentiles_table;
+
+--SECTION B
+
+--What is the unique count and total amount for each transaction type?
+
+SELECT 
+    txn_type,
+    COUNT(customer_id) AS unique_count,
+    SUM(txn_amount) AS total_amount
+FROM 
+    customer_transactions
+GROUP BY 
+    txn_type;
+
+--What is the average total historical deposit counts and amounts for all customers?
+
+WITH CTE AS (
+SELECT 
+      customer_id,
+      AVG(txn_amount) as avg_deposit,
+      COUNT(*) as transaction_count
+FROM 
+      customer_transactions
+WHERE 
+      txn_type = 'deposit'
+GROUP BY 
+      customer_id
+)
+SELECT 
+      AVG(avg_deposit) as avg_deposit_amount,
+      AVG(transaction_count) as avg_transactions
+FROM CTE;
+
+--For each month - how many Data Bank customers make more than 1 deposit and either 1 purchase or 1 withdrawal in a single month?
+
+WITH MonthlyTransactions AS (
+    SELECT 
+        customer_id,
+        DATE_TRUNC('month', txn_date) AS month,
+        COUNT(*) AS total_transactions,
+        COUNT(CASE WHEN txn_type = 'deposit' THEN 1 END) AS deposit_count,
+        COUNT(CASE WHEN txn_type IN ('purchase', 'withdrawal') THEN 1 END) AS purchase_withdrawal_count
+    FROM 
+        customer_transactions
+    GROUP BY 
+        customer_id, DATE_TRUNC('month', txn_date)
+),
+QualifiedCustomers AS (
+    SELECT 
+        customer_id,
+        month
+    FROM 
+        MonthlyTransactions
+    WHERE 
+        deposit_count > 1 AND purchase_withdrawal_count > 0
+)
+SELECT 
+    month,
+    COUNT(DISTINCT customer_id) AS qualified_customers_count
+FROM 
+    QualifiedCustomers
+GROUP BY 
+    month;
+
+
+--What is the closing balance for each customer at the end of the month?
+
+WITH MonthlyBalances AS (
+    SELECT 
+        customer_id,
+        DATE_TRUNC('month', txn_date) AS month,
+        SUM(CASE 
+            WHEN txn_type = 'deposit' THEN txn_amount 
+            WHEN txn_type IN ('purchase', 'withdrawal') THEN -txn_amount 
+            ELSE 0 
+            END) AS month_balance
+    FROM 
+        customer_transactions
+    GROUP BY 
+        customer_id, DATE_TRUNC('month', txn_date)
+)
+SELECT 
+    customer_id,
+    month,
+    month_balance AS closing_balance
+FROM 
+    MonthlyBalances;
+
+
+--What is the percentage of customers who increase their closing balance by more than 5%?
+
+WITH MonthlyBalances AS (
+    SELECT 
+        customer_id,
+        DATE_TRUNC('month', txn_date) AS month,
+        SUM(CASE 
+            WHEN txn_type = 'deposit' THEN txn_amount 
+            WHEN txn_type IN ('purchase', 'withdrawal') THEN -txn_amount 
+            ELSE 0 
+            END) AS month_balance
+    FROM 
+        customer_transactions
+    GROUP BY 
+        customer_id, DATE_TRUNC('month', txn_date)
+),
+BalanceChanges AS (
+    SELECT 
+        customer_id,
+        month,
+        LAG(month_balance) OVER (PARTITION BY customer_id ORDER BY month) AS previous_month_balance,
+        month_balance
+    FROM 
+        MonthlyBalances
+)
+SELECT 
+    COUNT(DISTINCT customer_id) AS customers_count,
+    COUNT(DISTINCT CASE WHEN month_balance > previous_month_balance * 1.05 THEN customer_id END) AS increased_balance_count,
+    (COUNT(DISTINCT CASE WHEN month_balance > previous_month_balance * 1.05 THEN customer_id END) * 100.0) / COUNT(DISTINCT customer_id) AS percentage
+FROM 
+    BalanceChanges;
+
+--SECTION C 
+
+--running customer balance column that includes the impact each transaction
+
+WITH MonthlyTransactionAmnt AS (
+    SELECT 
+        customer_id,
+        txn_date,
+        month(txn_date) AS txn_month,
+        txn_type,
+        txn_amount,
+        SUM(CASE 
+            WHEN txn_type = 'deposit' THEN txn_amount 
+            ELSE -txn_amount 
+        END) AS net_transaction_amt
+    FROM 
+        customer_transactions
+    GROUP BY 
+        customer_id,
+        txn_date,
+        txn_type,
+        txn_amount
+),
+RunningCustomerBalance AS (
+    SELECT 
+        customer_id,
+        txn_date,
+        txn_month,
+        txn_type,
+        txn_amount,
+        SUM(net_transaction_amt) OVER (
+            PARTITION BY customer_id 
+            ORDER BY txn_date 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS running_customer_balance
+    FROM 
+        MonthlyTransactionAmnt
+)
+SELECT *
+FROM 
+    RunningCustomerBalance
+ORDER BY 
+    customer_id, 
+    txn_date;
+
+--customer balance at the end of each month
+
+WITH MonthlyTransactionAmnt AS (
+    SELECT 
+        customer_id,
+        txn_date,
+        DATE_TRUNC('month', txn_date) AS txn_month,
+        txn_type,
+        txn_amount,
+        SUM(CASE 
+            WHEN txn_type = 'deposit' THEN txn_amount 
+            ELSE -txn_amount 
+        END) AS net_transaction_amt
+    FROM 
+        customer_transactions
+    GROUP BY 
+        customer_id,
+        txn_date,
+        txn_type,
+        txn_amount
+),
+RunningCustomerBalance AS (
+    SELECT 
+        customer_id,
+        txn_date,
+        txn_month,
+        txn_type,
+        txn_amount,
+        SUM(net_transaction_amt) OVER (
+            PARTITION BY customer_id 
+            ORDER BY txn_date 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS running_customer_balance
+    FROM 
+        MonthlyTransactionAmnt
+),
+MonthEndBalances AS (
+    SELECT 
+        customer_id,
+        txn_month,
+        MAX(txn_date) AS last_txn_date
+    FROM 
+        RunningCustomerBalance
+    GROUP BY 
+        customer_id, 
+        txn_month
+)
+SELECT 
+    r.customer_id,
+    m.txn_month,
+    r.running_customer_balance AS closing_balance
+FROM 
+    RunningCustomerBalance r
+JOIN 
+    MonthEndBalances m 
+ON 
+    r.customer_id = m.customer_id 
+AND 
+    r.txn_date = m.last_txn_date
+ORDER BY 
+    r.customer_id, 
+    r.txn_month;
+
+--minimum, average and maximum values of the running balance for each customer
+
+WITH MonthlyTransactionAmnt AS (
+    SELECT 
+        customer_id,
+        txn_date,
+        DATE_TRUNC('month', txn_date) AS txn_month,
+        txn_type,
+        txn_amount,
+        SUM(CASE 
+            WHEN txn_type = 'deposit' THEN txn_amount 
+            ELSE -txn_amount 
+        END) AS net_transaction_amt
+    FROM 
+        customer_transactions
+    GROUP BY 
+        customer_id, txn_date, txn_type, txn_amount
+),
+RunningCustomerBalance AS (
+    SELECT 
+        customer_id,
+        txn_date,
+        txn_month,
+        SUM(net_transaction_amt) OVER (
+            PARTITION BY customer_id 
+            ORDER BY txn_date 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS running_balance
+    FROM 
+        MonthlyTransactionAmnt
+)
+SELECT 
+    customer_id,
+    MIN(running_balance) AS min_running_balance,
+    AVG(running_balance) AS avg_running_balance,
+    MAX(running_balance) AS max_running_balance
+FROM 
+    RunningCustomerBalance
+GROUP BY 
+    customer_id
+ORDER BY 
+    customer_id;

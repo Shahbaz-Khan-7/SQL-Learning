@@ -1,0 +1,49 @@
+--Append the Branch information to the Customer information
+--Transform the latitude and longitude into radians
+--Find the closest Branch for each Customer
+--Make sure Distance is rounded to 2 decimal places
+--For each Branch, assign a Customer Priority rating, the closest customer having a rating of 1
+
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK11_DSB_BRANCHES;
+
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK11_DSB_CUSTOMER_LOCATIONS;
+
+with edited_table as (
+select 
+*,
+address_lat/(180/PI()) as address_lat_rads,                      --converting lat and longs into rads by dividing by 180/pi
+address_long/(180/PI()) as address_long_rads,
+branch_lat/(180/PI()) as branch_lat_rads,
+branch_long/(180/PI()) as branch_long_rads,
+address_long/(180/PI()) - branch_long/(180/PI()) as diff_in_long
+from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK11_DSB_CUSTOMER_LOCATIONS
+cross join TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK11_DSB_BRANCHES
+),
+
+--The distance (in miles) can then be calculated as:  3963 * acos((sin(lat1) * sin(lat2)) + cos(lat1) * cos(lat2) * cos(long2 – long1))
+closest_branch as (
+select 
+     branch,
+     branch_lat,
+     branch_long,
+     ROUND(3963 * acos((sin(address_lat_rads) * sin(branch_lat_rads)) + cos(address_lat_rads) * cos(branch_lat_rads) * cos(diff_in_long)),2) as distance,
+     row_number() over(partition by customer order by distance asc) as rank_of_closest,  --ranking closest branch by distance 
+     row_number() over(partition by branch order by distance asc) as customer_priority, --ranking most important customers for branches by distance
+     customer,
+     address_lat,
+     address_long,
+from 
+edited_table
+)
+select
+     branch,
+     branch_lat,
+     branch_long,
+     distance,
+     customer_priority,
+     customer,
+     address_lat,
+     address_long,
+from
+    closest_branch
+where rank_of_closest = 1;

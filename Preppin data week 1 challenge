@@ -1,0 +1,55 @@
+-- Split the Transaction Code to extract the letters at the start of the transaction code. These identify the bank who processes the transactions 
+-- Rename the new field with the Bank code 'Bank'. 
+-- Rename the values in the Online or In-person field, Online of the 1 values and In-Person for the 2 values. 
+-- Change the date to be the day of the week 
+-- Different levels of detail are required in the outputs. You will need to sum up the values of the transactions in three ways (help):
+-- 1. Total Values of Transactions by each bank
+-- 2. Total Values by Bank, Day of the Week and Type of Transaction (Online or In-Person)
+-- 3. Total Values by Bank and Customer Code
+
+
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01;
+
+SELECT 
+    split_part(transaction_code,'-',1) AS Bank, *,
+    CASE
+        WHEN online_or_in_person = 1 THEN 'Online'
+        WHEN online_or_in_person = 2 THEN 'In-Person'
+    END AS Transaction_Type,
+    dayname(date(transaction_date, 'dd/mm/yyyy hh24:mi:ss')) as day_of_week,
+FROM 
+   TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01;
+
+-- The different levels of detail:
+
+-- 1. total values of transaction by each bank
+
+select 
+split_part(transaction_code,'-',1) AS Bank,
+sum(value) as total_value
+from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01
+group by bank;
+
+-- 2. Total Values by Bank, Day of the Week and Type of Transaction (Online or In-Person)
+
+
+SELECT 
+    split_part(transaction_code,'-',1) AS Bank,
+    CASE
+        WHEN online_or_in_person = 1 THEN 'Online'
+        WHEN online_or_in_person = 2 THEN 'In-Person'
+    END AS Transaction_Type,
+    dayname(date(transaction_date, 'dd/mm/yyyy hh24:mi:ss')) as day_of_week,
+    sum(value) as total_value
+FROM 
+   TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01
+   group by bank, day_of_week, Transaction_Type;
+
+-- 3. Total Values by Bank and Customer Code
+
+select 
+split_part(transaction_code,'-',1) AS Bank,
+customer_code,
+sum(value) as total_value
+from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01
+group by bank, customer_code;

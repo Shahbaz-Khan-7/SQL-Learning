@@ -1,0 +1,86 @@
+--Input each of the 12 monthly files
+WITH input_tables AS (
+SELECT *, 'PD2023_WK08_01' as tablename
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_01
+UNION ALL
+SELECT *, 'PD2023_WK08_02' as tablename
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_02
+UNION ALL
+SELECT *, 'PD2023_WK08_03' as tablename
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_03
+UNION ALL
+SELECT *, 'PD2023_WK08_04' as tablename
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_04
+UNION ALL
+SELECT *, 'PD2023_WK08_05' as tablename
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_05
+UNION ALL
+SELECT *, 'PD2023_WK08_06' as tablename
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_06
+UNION ALL
+SELECT *, 'PD2023_WK08_07' as tablename
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_07
+UNION ALL
+SELECT *, 'PD2023_WK08_08' as tablename
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK08_08
+),
+--Create a 'file date' using the month found in the file name
+--The Null value should be replaced as 1
+--Clean the Market Cap value to ensure it is the true value as 'Market Capitalisation'
+--Remove any rows with 'n/a'
+--Categorise the Purchase Price into groupings
+--0 to 24,999.99 as 'Low'
+--25,000 to 49,999.99 as 'Medium'
+--50,000 to 74,999.99 as 'High'
+--75,000 to 100,000 as 'Very High'
+--Categorise the Market Cap into groupings
+--Below $100M as 'Small'
+--Between $100M and below $1B as 'Medium'
+--Between $1B and below $100B as 'Large' 
+--$100B and above as 'Huge'
+--Rank the highest 5 purchases per combination of: file date, Purchase Price Categorisation and Market Capitalisation Categorisation.
+--Output only records with a rank of 1 to 5
+edited_table as (
+SELECT
+     *,
+     SPLIT_PART(tablename,'_',3) as monthnumber,
+     LTRIM(SPLIT_PART(tablename,'_',1),'PD') as yearnumber,
+     TO_DATE(concat(yearnumber,'-',monthnumber,'-','01')) as file_date,
+     LTRIM(purchase_price,'$')::float as purchase_price2,
+     REGEXP_REPLACE(LTRIM(market_cap,'$'),'[^0-9.]', '')::float*
+    (CASE 
+    WHEN RIGHT(market_cap,1)='B' THEN 1000000000
+    WHEN RIGHT(market_cap,1)='M' THEN 1000000
+    END) as market_cap2,
+     CASE
+     WHEN purchase_price2 BETWEEN 0 AND 24999.99 THEN 'Low'
+     WHEN purchase_price2 BETWEEN 25000 AND 49999.99 THEN 'Medium'
+     WHEN purchase_price2 BETWEEN 50000 AND 74999.99 THEN 'High'
+     WHEN purchase_price2 BETWEEN 75000 AND 100000 THEN 'Very High'
+     END AS purchase_price_category,
+     CASE
+     WHEN market_cap2 < 100000000 THEN 'Small'
+     WHEN market_cap2 BETWEEN 100000000 AND 999999999 THEN 'Medium'
+     WHEN market_cap2 BETWEEN 1000000000 AND 99999999999 THEN 'Large'
+     WHEN market_cap2 >= 100000000000 THEN 'Huge'
+     END AS market_cap_category,
+     ROW_NUMBER() OVER (PARTITION BY file_date, purchase_price_category, market_cap_category ORDER BY purchase_price DESC) AS purchase_rank
+FROM
+    input_tables
+WHERE
+    market_cap != 'n/a'
+QUALIFY
+    purchase_rank <=5
+) 
+select 
+    market_cap_category, 
+    purchase_price_category,
+    file_date,
+    ticker,
+    sector,
+    market,
+    stock_name,
+    market_cap2,
+    purchase_price2,
+    purchase_rank
+from edited_table;

@@ -1,0 +1,123 @@
+-- Aggregate the data so we have a single balance for each day already in the dataset, for each account
+-- Scaffold the data so each account has a row between 31st Jan and 14th Feb
+-- Make sure new rows have a null in the Transaction Value field
+-- Create a parameter so a particular date can be selected
+-- Filter to just this date
+-- Output the data 
+
+select * from TIL_DATASCHOOL.DS35.WEEK9_OUTPUT_SHAHBAZ;
+
+CREATE OR REPLACE TABLE week9FixedOutputTable AS (
+select
+    account_number as account_id,
+    balance_date as transaction_date,
+    transaction_value,
+    running_balance as balance
+from
+    TIL_DATASCHOOL.DS35.WEEK9_OUTPUT_SHAHBAZ
+);
+
+select * from week9fixedoutputtable;
+
+SET SELECTED_DATE = '2023-02-01';
+
+
+-- CTE to aggregate transactions by account and date
+WITH DAY_TRANS AS (
+    SELECT 
+        account_id,
+        transaction_date,
+        SUM(transaction_value) AS transaction_value
+    FROM 
+        week9FixedOutputTable
+    GROUP BY 
+        account_id,
+        transaction_date
+),
+BALANCE_ORDERED AS (
+    -- Ensure each unique partition has a unique row
+    SELECT 
+        *,
+        ROW_NUMBER() OVER(PARTITION BY account_id, transaction_date ORDER BY transaction_value ASC) AS rn
+    FROM 
+        week9FixedOutputTable
+),
+DAILY_SUMMARY AS (
+    -- Join aggregated transactions with ordered balance
+    SELECT 
+        B.account_id,
+        B.transaction_date,
+        T.transaction_value,
+        B.balance
+    FROM 
+        BALANCE_ORDERED AS B
+    INNER JOIN 
+        DAY_TRANS AS T 
+    ON 
+        T.account_id = B.account_id 
+        AND T.transaction_date = B.transaction_date
+    WHERE 
+        B.rn = 1  -- Keep only the first row per group
+),
+ACCOUNTNUMS AS (
+    -- Get distinct account IDs
+    SELECT DISTINCT 
+        account_id 
+    FROM 
+        DAILY_SUMMARY
+),
+NUMBERS AS (
+    -- Scaffold dates from 31st Jan to 14th Feb for each account
+    SELECT 
+        '2023-01-31'::DATE AS n,
+        account_id 
+    FROM 
+        ACCOUNTNUMS
+    UNION ALL
+    SELECT 
+        DATEADD(DAY, 1, n),
+        account_id
+    FROM 
+        NUMBERS 
+    WHERE 
+        n < '2023-02-14'::DATE
+),
+DAILY_VIEW AS (
+    -- Join scaffolded data with daily summary and balance ordered
+    SELECT 
+        N.account_id,
+        N.n AS transaction_date,
+        D.transaction_value,
+        B.balance AS balance_dontuse,
+        B.transaction_date AS transaction_date2,
+        B.balance,
+        DATEDIFF(DAY, B.transaction_date, N.n) AS datediff,
+        ROW_NUMBER() OVER(PARTITION BY N.account_id, N.n ORDER BY DATEDIFF(DAY, B.transaction_date, N.n)) AS rn
+    FROM 
+        NUMBERS AS N 
+    LEFT JOIN 
+        DAILY_SUMMARY AS D 
+    ON 
+        N.account_id = D.account_id 
+        AND N.n = D.transaction_date
+    INNER JOIN 
+        BALANCE_ORDERED AS B 
+    ON 
+        B.account_id = N.account_id 
+        AND B.transaction_date <= N.n
+    ORDER BY 
+        N.account_id, N.n
+)
+-- Final query to get results for a selected date
+SELECT 
+    account_id,
+    transaction_date,
+    transaction_value,
+    balance
+FROM 
+    DAILY_VIEW 
+WHERE 
+    rn = 1  -- Keep only the first row based on closest date
+AND 
+    transaction_date = $SELECTED_DATE;  -- Parameterized date
+

@@ -1,0 +1,87 @@
+--Reshape the data so we have 5 rows for each customer, with responses for the Mobile App and Online Interface being in separate fields on the same row
+--Clean the question categories so they don't have the platform in from of them
+--e.g. Mobile App - Ease of Use should be simply Ease of Use
+--ABSExclude the Overall Ratings, these were incorrectly calculated by the system
+--Calculate the Average Ratings for each platform for each customer 
+--Calculate the difference in Average Rating between Mobile App and Online Interface for each customer
+--Catergorise customers as being:
+--Mobile App Superfans if the difference is greater than or equal to 2 in the Mobile App's favour
+--Mobile App Fans if difference >= 1
+--Online Interface Fan
+--Online Interface Superfan
+--Neutral if difference is between 0 and 1
+--Calculate the Percent of Total customers in each category, rounded to 1 decimal place
+
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK06_DSB_CUSTOMER_SURVEY;
+
+--cte with unpivoted table for mobile apps 
+WITH unpivot_mobile_table AS (
+    SELECT 
+        customer_id,
+        split_part(mobile_app_fields,'___',2) as category,
+        mobile_values
+    FROM 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK06_DSB_CUSTOMER_SURVEY
+    UNPIVOT 
+        (mobile_values FOR mobile_app_fields IN (
+            mobile_app___ease_of_use, 
+            mobile_app___ease_of_access, 
+            mobile_app___navigation, 
+            mobile_app___likelihood_to_recommend 
+            
+        )) AS mobile_unpivoted
+  ),
+ --cte with unpivoted table for online interface 
+unpivot_online_table as (
+  SELECT 
+        customer_id,
+        split_part(online_interface_fields,'___',2) as category,
+        online_interface_values
+    FROM 
+        TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK06_DSB_CUSTOMER_SURVEY
+    UNPIVOT 
+        (online_interface_values FOR online_interface_fields IN (
+            online_interface___ease_of_use, 
+            online_interface___ease_of_access, 
+            online_interface___navigation, 
+            online_interface___likelihood_to_recommend 
+           
+        )) AS online_interface_unpivoted
+  ), 
+--joined table cte
+joined_table as (
+  SELECT 
+    mt.*,
+    ot.online_interface_values
+FROM 
+    unpivot_mobile_table mt
+JOIN 
+    unpivot_online_table ot 
+ON mt.customer_id = ot.customer_id AND mt.category = ot.category
+),
+--average table cte
+average_table as (
+SELECT  
+    customer_id,
+    avg(mobile_values) as avg_mobile_values,
+    avg(online_interface_values) as avg_online_interface_values,
+    avg(mobile_values) - avg(online_interface_values) as absolute_difference,             
+    CASE                                                                       --When using the CASE statement, the conditions are evaluated in order, and the first condition that evaluates to 
+       WHEN absolute_difference <= -2 THEN 'Online Interface Superfan'         --true is the one that gets executed. To ensure that the conditions are evaluated correctly, you should order them in such  
+       WHEN absolute_difference <= -1 THEN 'Online Interface Fan'              --way that the most specific conditions come first. 
+       WHEN absolute_difference >= 2 THEN 'Mobile App Superfans'
+       WHEN absolute_difference >= 1 THEN 'Mobile App Fans'
+       ELSE 'Neutral'
+    END AS preference,
+FROM 
+    joined_table
+GROUP BY 
+    customer_id)
+
+SELECT
+    preference,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS percentage_of_total
+FROM
+    average_table
+GROUP BY
+    preference;

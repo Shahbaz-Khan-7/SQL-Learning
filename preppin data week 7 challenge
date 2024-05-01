@@ -1,0 +1,75 @@
+select * from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_DETAIL;
+
+--For the Transaction Path table: 
+--Make sure field naming convention matches the other tables
+--i.e. instead of Account_From it should be Account From
+
+select * from
+TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_PATH;  --dont need to worry about this in sql
+
+--For the Account Information table:
+--Make sure there are no null values in the Account Holder ID
+--Ensure there is one row per Account Holder ID
+--Joint accounts will have 2 Account Holders, we want a row for each of them
+with account_information as (
+select 
+     ACCOUNT_NUMBER, 
+     ACCOUNT_TYPE, 
+     value as ACCOUNT_HOLDER_ID, 
+     BALANCE_DATE, 
+     BALANCE
+from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_ACCOUNT_INFORMATION, 
+lateral split_to_table(account_holder_id,',')  --The query will split each value in the specified column by the comma delimiter and return each split value as a separate row. 
+where account_holder_id is not null), 
+
+--For the Account Holders table:
+--Make sure the phone numbers start with 07
+account_holders as (
+select 
+     account_holder_id,
+     name,
+     date_of_birth,
+     concat('0',contact_number) as contact_number,
+     first_line_of_address
+from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_ACCOUNT_HOLDERS),
+
+--Bring the tables together
+--Filter out cancelled transactions 
+--Filter to transactions greater than £1,000 in value 
+--Filter out Platinum accounts
+Joined_table as (
+select
+     tp.transaction_id,
+     account_to,
+     transaction_date,
+     value,
+     ai.account_number,
+     ai.account_type,
+     ai.balance_date,
+     ai.balance,
+     ah.name,
+     ah.date_of_birth,
+     ah.contact_number,
+     ah.first_line_of_address
+from
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_PATH tp
+JOIN 
+    TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK07_TRANSACTION_DETAIL td 
+ON 
+    tp.transaction_id = td.transaction_id
+JOIN 
+    account_information ai 
+ON 
+    tp.account_from = ai.account_number
+JOIN 
+    account_holders ah 
+ON 
+    ah.account_holder_id = ai.account_holder_id
+WHERE
+    cancelled_ = 'N'
+AND 
+    value > 1000
+AND
+    ai.account_type != 'platinum'
+)
+select * from joined_table;

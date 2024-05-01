@@ -1,0 +1,296 @@
+select * from TIL_PLAYGROUND.CS3_FOODIE_FI.PLANS;
+
+select * from TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS;
+
+--A. Customer Journey
+--Based off the 8 sample customers provided in the sample from the subscriptions table, write a brief description about each customer’s onboarding journey.
+
+select * from TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS s
+join TIL_PLAYGROUND.CS3_FOODIE_FI.PLANS p
+on s.plan_id=p.plan_id
+where s.customer_id <= 8;
+
+-- customer 1 started with a free trail on foodie fi on the 1st of august 2020. After the 7 day free trail they moved onto a basic monthly subscription starting on the 8th.
+-- customer 2 started with a free trail on foodie fi on the 20th of september 2020. After the 7 day free trail they moved onto a pro annual subscription starting on the 27th.
+-- customer 3 started with a free trail on foodie fi on the 13th of january 2020. After the 7 day free trail they moved onto a basic monthly subscription starting on the 20th.
+-- customer 4 started with a free trail on foodie fi on the 17th of january 2020. After the 7 day free trail they moved onto a basic monthly subscription starting on the 24th. They cancelled their subcription on the 21st of april 2020. they will have access untill the end of their billing period.
+-- customer 5 started with a free trail on foodie fi on the 3rd of august 2020. After the 7 day free trail they moved onto a basic monthly subscription starting on the 10th.
+-- customer 6 started with a free trail on foodie fi on the 23rd of december 2020. After the 7 day free trail they moved onto a basic monthly subscription starting on the 30th. They cancelled their subcription on the 26th of february 2021. they will have access untill the end of their billing period.
+-- customer 7 started with a free trail on foodie fi on the 5th of february 2020. After the 7 day free trail they moved onto a basic monthly subscription starting on the 12th. They upgraded their subcription on the 22nd of may 2020 to a pro monthly plan.
+-- customer 8 started with a free trail on foodie fi on the 11th of june 2020. After the 7 day free trail they moved onto a basic monthly subscription starting on the 18th. They upgraded their subcription on the 3rd of august 2020 to a pro monthly plan.
+
+--B. Data Analysis Questions
+--How many customers has Foodie-Fi ever had? -- they had 1000 distinct customers
+
+SELECT COUNT(DISTINCT customer_id) AS number_of_customers
+FROM TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS;
+
+--What is the monthly distribution of trial plan start_date values for our dataset - use the start of the month as the group by value
+
+SELECT 
+    MONTH(start_date) AS month,
+    COUNT(*) AS start_date_count
+FROM 
+    TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+WHERE 
+    plan_id = 0
+GROUP BY 
+    MONTH(start_date)
+ORDER BY 
+    month;
+
+--What plan start_date values occur after the year 2020 for our dataset? Show the breakdown by count of events for each plan_name
+
+SELECT 
+   plan_id,
+   count(start_date)
+FROM 
+    TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+where year(start_date) > 2020
+group by plan_id;
+
+--What is the customer count and percentage of customers who have churned rounded to 1 decimal place?
+
+select 
+   COUNT(DISTINCT customer_id) AS number_of_customers,
+   ROUND((COUNT(DISTINCT customer_id)/1000)*100,1) AS percentage_of_churned
+from 
+   TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+where plan_id = 4;
+
+-- or 
+
+SELECT 
+    COUNT(distinct customer_id) AS customer_count,
+    ROUND((COUNT(CASE WHEN plan_id = 4 THEN 1 END) / COUNT(distinct customer_id)) * 100, 1) AS churned_percentage
+FROM 
+    TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS;
+
+--How many customers have churned straight after their initial free trial - what percentage is this rounded to the nearest whole number?
+
+SELECT 
+COUNT(DISTINCT customer_id) AS distinct_customers_with_seven_day_difference
+FROM (
+    SELECT 
+        customer_id,
+        DATEDIFF(day, 
+                 (SELECT MIN(start_date) 
+                  FROM TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS 
+                  WHERE customer_id = t.customer_id AND plan_id = 0), 
+                 (SELECT MIN(start_date) 
+                  FROM TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS 
+                  WHERE customer_id = t.customer_id AND plan_id = 4)
+                ) AS date_diff
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS t
+) AS subquery
+WHERE date_diff = 7;
+
+--adding percentage 
+
+SELECT 
+    COUNT(DISTINCT customer_id) AS distinct_customers_with_seven_day_difference,
+    ROUND((COUNT(DISTINCT customer_id) * 100.0) / total_customers, 0) AS percentage_with_seven_day_difference
+FROM (
+    SELECT 
+        customer_id,
+        DATEDIFF(day, 
+                 (SELECT MIN(start_date)                                    -- subquery works out the datediff between the minimum start date where the customer plan is 0 and the minimum start date
+                  FROM TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS 
+                  WHERE customer_id = t.customer_id AND plan_id = 0),       -- where the customer plan is 4 (churn). the query ensures customer id in both cases is the same.     
+                 (SELECT MIN(start_date) 
+                  FROM TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS 
+                  WHERE customer_id = t.customer_id AND plan_id = 4)
+                ) AS date_diff
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS t
+) AS subquery
+CROSS JOIN (
+    SELECT COUNT(DISTINCT customer_id) AS total_customers      -- cross joining (cartesion join) another sub query which works out total customers (this is essentially 'fixing' the total onto every row')
+    FROM TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+) AS total_customers
+WHERE date_diff = 7
+GROUP BY total_customers;    -- Although there's no actual aggregation being performed in the main query, the GROUP BY clause is required because we're referencing the total_customers column in the 
+                             -- SELECT statement, and SQL requires that any column not part of an aggregate function must be included in the GROUP BY clause.
+
+-- so overall query reads as give me the total number of customer with a seven day diff (the number of customer curned after a free trial) and the percentage (total customer in original query/ total customer subquery) from a table which works out the date diff where the diff = 7.
+
+--What is the number and percentage of customer plans after their initial free trial?
+
+WITH InitialFreeTrials AS (
+    SELECT 
+        customer_id,
+        MIN(start_date) AS initial_free_trial_start_date     -- creating cte for table with the start dates for all the free trials
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+    WHERE 
+        plan_id = 0 -- Filter for initial free trial plan
+    GROUP BY 
+        customer_id
+)
+SELECT 
+    COUNT(DISTINCT t.customer_id) AS number_of_customers_after_free_trial,                                                               --working out the answers 
+    ROUND((COUNT(DISTINCT t.customer_id) * 100.0) / total_customers.total_customers, 2) AS percentage_of_customers_after_free_trial
+FROM 
+    TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS t
+JOIN 
+    InitialFreeTrials ift ON t.customer_id = ift.customer_id
+CROSS JOIN (
+    SELECT 
+        COUNT(DISTINCT t.customer_id) AS total_customers           -- subquery is used to calculate the total number of distinct customers
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS t
+) AS total_customers(total_customers)  -- Repeat the alias here
+WHERE 
+    t.start_date > ift.initial_free_trial_start_date       -- start date of plan > then start date of free trial 
+    AND t.plan_id != 0                                     -- doesnt include free trials themselves or cancellations straight after the trial
+    AND t.plan_id != 4
+    group by total_customers;
+
+--What is the customer count and percentage breakdown of all 5 plan_name values at 2020-12-31?
+
+select 
+   plan_id,
+   COUNT(DISTINCT customer_id) AS number_of_customers,
+   ROUND((COUNT(DISTINCT customer_id)/1000)*100,1) AS percentage_of_customers   -- doesnt take into account active plans vs inactive
+from 
+   TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+where start_date <= '2020-12-31'
+group by plan_id;
+--------------------------------------------------------------
+
+WITH CurrentActivePlan AS (
+    SELECT 
+        customer_id,
+        MAX(plan_id) AS active_plan_id
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS      -- first cte works out the current active plan for each customer
+    WHERE 
+        start_date <= '2020-12-31'
+    GROUP BY 
+        customer_id
+),
+PlanCounts AS (
+    SELECT 
+        CASE cap.active_plan_id
+            WHEN 0 THEN 'Free Trial'
+            WHEN 1 THEN 'Paid Plan 1'
+            WHEN 2 THEN 'Paid Plan 2'
+            WHEN 3 THEN 'Paid Plan 3'                   -- second cte workd out customer count for each plan at the specified date, 2020-12-31. This CTE groups the customers by their current active plan
+            WHEN 4 THEN 'Cancellation'                  -- and counts the number of distinct customers
+            ELSE 'Unknown'
+        END AS plan_name,
+        COUNT(DISTINCT cap.customer_id) AS customer_count
+    FROM 
+        CurrentActivePlan cap
+    GROUP BY 
+        cap.active_plan_id
+),
+TotalCustomers AS (
+    SELECT 
+        COUNT(DISTINCT customer_id) AS total_customers          -- subquery works out total customers
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+    WHERE 
+        start_date <= '2020-12-31'
+)
+SELECT 
+    pc.plan_name,
+    pc.customer_count,
+    ROUND((pc.customer_count * 100.0) / tc.total_customers, 2) AS percentage
+FROM 
+    PlanCounts pc
+CROSS JOIN 
+    TotalCustomers tc;
+
+--How many customers have upgraded to an annual plan in 2020?
+
+ SELECT 
+        COUNT(DISTINCT customer_id)
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS      
+    WHERE 
+        YEAR(start_date) = 2020 and plan_id = 3;
+
+--How many days on average does it take for a customer to an annual plan from the day they join Foodie-Fi?
+
+WITH PivotTable AS (
+    SELECT
+        customer_id,
+        MAX(CASE WHEN plan_id = 0 THEN start_date END) AS free_trial_start_date,
+        MAX(CASE WHEN plan_id = 1 THEN start_date END) AS plan_1_start_date,
+        MAX(CASE WHEN plan_id = 2 THEN start_date END) AS plan_2_start_date,
+        MAX(CASE WHEN plan_id = 3 THEN start_date END) AS plan_3_start_date
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+    GROUP BY 
+        customer_id
+)
+SELECT 
+    AVG(DATEDIFF(day, free_trial_start_date, plan_3_start_date)) AS avg_days_to_plan_3
+FROM 
+    PivotTable
+WHERE 
+    free_trial_start_date IS NOT NULL
+    AND plan_3_start_date IS NOT NULL;
+
+--Can you further breakdown this average value into 30 day periods (i.e. 0-30 days, 31-60 days etc)
+
+WITH PivotTable AS (
+    SELECT
+        customer_id,
+        MAX(CASE WHEN plan_id = 0 THEN start_date END) AS free_trial_start_date,
+        MAX(CASE WHEN plan_id = 1 THEN start_date END) AS plan_1_start_date,
+        MAX(CASE WHEN plan_id = 2 THEN start_date END) AS plan_2_start_date,
+        MAX(CASE WHEN plan_id = 3 THEN start_date END) AS plan_3_start_date
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+    GROUP BY 
+        customer_id
+),
+TransitionDuration AS (
+    SELECT 
+        customer_id,
+        free_trial_start_date,
+        plan_3_start_date,
+        DATEDIFF(day, free_trial_start_date, plan_3_start_date) AS transition_duration
+    FROM 
+        PivotTable
+    WHERE 
+        free_trial_start_date IS NOT NULL
+        AND plan_3_start_date IS NOT NULL
+)
+SELECT 
+    CASE
+        WHEN transition_duration BETWEEN 0 AND 30 THEN '0-30 days'
+        WHEN transition_duration BETWEEN 31 AND 60 THEN '31-60 days'
+        WHEN transition_duration BETWEEN 61 AND 90 THEN '61-90 days'
+        ELSE 'More than 90 days'
+    END AS transition_period,
+    COUNT(*) AS customer_count
+FROM 
+    TransitionDuration
+GROUP BY 
+    transition_period
+ORDER BY 
+    MIN(transition_duration);
+
+--How many customers downgraded from a pro monthly to a basic monthly plan in 2020?
+
+WITH PivotTable AS (
+    SELECT
+        customer_id,
+        MAX(CASE WHEN plan_id = 0 THEN start_date END) AS free_trial_start_date,
+        MAX(CASE WHEN plan_id = 1 THEN start_date END) AS plan_1_start_date,
+        MAX(CASE WHEN plan_id = 2 THEN start_date END) AS plan_2_start_date,
+        MAX(CASE WHEN plan_id = 3 THEN start_date END) AS plan_3_start_date,
+    FROM 
+        TIL_PLAYGROUND.CS3_FOODIE_FI.SUBSCRIPTIONS
+    GROUP BY 
+        customer_id
+)
+SELECT 
+    *
+FROM 
+    PivotTable
+where plan_3_start_date <= plan_1_start_date;

@@ -1,0 +1,258 @@
+--PART 1 SCHEMA SETUP
+--Creating schema within til portfolio projects
+CREATE SCHEMA SHAHBAZ_SCHEMA;
+
+--create the tables within the schema with the correct data types
+
+--lego colors table:
+select * from TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_COLORS;
+--id:number(38,0), name,rgb and is_trans are varchar(255)
+CREATE TABLE TIL_PORTFOLIO_PROJECTS.SHAHBAZ_SCHEMA.LEGO_COLORS (
+ID NUMBER(38,0),
+NAME VARCHAR(255),
+RGB VARCHAR(255),
+IS_TRANS VARCHAR(255)
+);
+--dropping incorrectly named table 
+DROP TABLE IF EXISTS TIL_PORTFOLIO_PROJECTS.SHAHBAZ_SCHEMA.SHAHBAZ_SCHEMA;
+--inserting data into created table
+INSERT INTO TIL_PORTFOLIO_PROJECTS.SHAHBAZ_SCHEMA.LEGO_COLORS (
+SELECT *
+FROM TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_COLORS
+);
+--CHECK 
+SELECT * FROM TIL_PORTFOLIO_PROJECTS.SHAHBAZ_SCHEMA.LEGO_COLORS;
+--REPEAT PROCESS FOR ALL OTHER TABLES
+
+-- CREATING REMAINING TABLES (HAVE SELECTED DATABASE & SCHEMA IN WORKSHEET SO DONT NEED FULL PATH)
+CREATE TABLE LEGO_INVENTORIES (
+ID NUMBER(38,0),
+VERSION NUMBER(38,0),
+SET_NUM VARCHAR(255)
+);
+
+CREATE TABLE LEGO_INVENTORY_PARTS (
+INVENTORY_ID NUMBER(38,0),
+PART_NUM VARCHAR(255),
+COLOR_ID NUMBER(38,0),
+QUANTITY NUMBER(38,0),
+IS_SPARE VARCHAR(255)
+);
+
+CREATE TABLE LEGO_INVENTORY_SETS (
+INVENTORY_ID NUMBER(38,0),
+SET_NUM VARCHAR(255),
+QUANTITY NUMBER(38,0)
+);
+
+CREATE TABLE LEGO_PARTS (
+PART_NUM VARCHAR(255),
+NAME VARCHAR(255),
+PART_CAT_ID NUMBER(38,0)
+);
+
+CREATE TABLE LEGO_PART_CATEGORIES (
+ID NUMBER(38,0),
+NAME VARCHAR(255)
+);
+
+CREATE TABLE LEGO_SETS (
+SET_NUM VARCHAR(255),
+NAME VARCHAR(255),
+YEAR NUMBER(38,0),
+THEME_ID NUMBER(38,0),
+NUM_PARTS NUMBER(38,0)
+);
+
+CREATE TABLE LEGO_THEMES (
+ID NUMBER(38,0),
+NAME VARCHAR(255),
+PARENT_ID NUMBER(38,0)
+);
+
+--INSERTING REMAINING DATA
+
+INSERT INTO LEGO_INVENTORIES (
+SELECT *
+FROM TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_INVENTORIES
+);
+
+INSERT INTO LEGO_INVENTORY_PARTS (
+SELECT *
+FROM TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_INVENTORY_PARTS
+);
+
+INSERT INTO LEGO_INVENTORY_SETS (
+SELECT *
+FROM TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_INVENTORY_SETS
+);
+
+INSERT INTO LEGO_PARTS (
+SELECT *
+FROM TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_PARTS
+);
+
+INSERT INTO LEGO_PART_CATEGORIES (
+SELECT *
+FROM TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_PART_CATEGORIES
+);
+
+INSERT INTO LEGO_SETS (
+SELECT *
+FROM TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_SETS
+);
+
+INSERT INTO LEGO_THEMES (
+SELECT *
+FROM TIL_PORTFOLIO_PROJECTS.STAGING.LEGO_THEMES
+);
+
+--SET PRIMARY AND FORIEGN KEYS
+
+-- Add primary keys
+ALTER TABLE LEGO_COLORS ADD PRIMARY KEY (ID);
+ALTER TABLE LEGO_INVENTORIES ADD PRIMARY KEY (ID);
+ALTER TABLE LEGO_PARTS ADD PRIMARY KEY (PART_NUM);
+ALTER TABLE LEGO_PART_CATEGORIES ADD PRIMARY KEY (ID);
+ALTER TABLE LEGO_SETS ADD PRIMARY KEY (SET_NUM);
+ALTER TABLE LEGO_THEMES ADD PRIMARY KEY (ID);
+
+-- Add foreign keys
+ALTER TABLE LEGO_INVENTORY_PARTS ADD FOREIGN KEY (INVENTORY_ID) REFERENCES LEGO_INVENTORIES(ID);
+
+ALTER TABLE LEGO_INVENTORY_PARTS ADD FOREIGN KEY (PART_NUM) REFERENCES LEGO_PARTS(PART_NUM);
+
+ALTER TABLE LEGO_INVENTORY_PARTS ADD FOREIGN KEY (COLOR_ID) REFERENCES LEGO_COLORS(ID);
+
+ALTER TABLE LEGO_PARTS ADD FOREIGN KEY (PART_CAT_ID) REFERENCES LEGO_PART_CATEGORIES(ID);
+
+ALTER TABLE LEGO_INVENTORY_SETS ADD FOREIGN KEY (INVENTORY_ID) REFERENCES LEGO_INVENTORIES(ID);
+
+ALTER TABLE LEGO_INVENTORY_SETS ADD FOREIGN KEY (SET_NUM) REFERENCES LEGO_SETS(SET_NUM);
+
+ALTER TABLE LEGO_SETS ADD FOREIGN KEY (THEME_ID) REFERENCES LEGO_THEMES(ID);
+
+ALTER TABLE LEGO_INVENTORIES ADD FOREIGN KEY (SET_NUM) REFERENCES LEGO_SETS(SET_NUM);
+
+--PART 2 ANALYSIS OF LEGO SETS
+
+--Unique Parts Identification:
+--Identify parts that appear in only one LEGO set. Note the quantity of the part does not matter.
+
+WITH PartSetsCount AS (
+    SELECT
+        lp.part_num,
+        COUNT(DISTINCT li.set_num) AS num_sets
+    FROM
+        lego_parts lp
+    JOIN
+        lego_inventory_parts lip ON lp.part_num = lip.part_num
+    JOIN
+        lego_inventories li ON lip.inventory_id = li.id
+    GROUP BY
+        lp.part_num
+)
+
+SELECT
+    lp.part_num,
+    lp.name AS part_name
+FROM
+    PartSetsCount psc
+JOIN
+    lego_parts lp 
+ON 
+    psc.part_num = lp.part_num
+WHERE
+    psc.num_sets = 1;
+
+--2. Set Analysis:
+--For each LEGO set, calculate the number of unique parts it includes and the total number of parts (we're looking for a count of the parts, not quantity). Calculate the ratio of unique parts to total parts as a measure of 'uniqueness' for each set. Enrich your query with the set year and theme name.
+
+WITH SetPartsCount AS (
+    SELECT
+        li.set_num,
+        COUNT(DISTINCT lp.part_num) AS unique_parts_count,
+        COUNT(*) AS total_parts_count
+    FROM
+        lego_inventory_parts lip
+    JOIN
+        lego_inventories li ON lip.inventory_id = li.id
+    JOIN
+        lego_parts lp ON lip.part_num = lp.part_num
+    GROUP BY
+        li.set_num
+),
+SetDetails AS (
+    SELECT
+        ls.set_num,
+        ls.year,
+        lt.name AS theme_name
+    FROM
+        lego_sets ls
+    JOIN
+        lego_themes lt ON ls.theme_id = lt.id
+)
+SELECT
+    spc.set_num,
+    sd.year,
+    sd.theme_name,
+    spc.unique_parts_count,
+    spc.total_parts_count,
+    ROUND(spc.unique_parts_count::FLOAT / spc.total_parts_count, 2) AS uniqueness_ratio
+FROM
+    SetPartsCount spc
+JOIN
+    SetDetails sd ON spc.set_num = sd.set_num
+ORDER BY
+    spc.set_num;
+
+-- create view:
+
+CREATE VIEW unique_sets AS
+WITH UNIQUE_PARTS AS (
+    SELECT 
+        lp.part_num,
+        lp.name AS part_name,
+        COUNT(DISTINCT li.set_num) AS appears_in_n_sets
+    FROM 
+        lego_parts lp
+    JOIN 
+        lego_part_categories lpc ON lp.part_cat_id = lpc.id
+    JOIN 
+        lego_inventory_parts lip ON lp.part_num = lip.part_num
+    JOIN 
+        lego_inventories li ON lip.inventory_id = li.id
+    GROUP BY 
+        lp.part_num,
+        lp.name
+    HAVING 
+        COUNT(DISTINCT li.set_num) = 1
+)
+
+SELECT 
+    ls.name AS set_name,
+    ls.year,
+    lt.name AS theme,
+    COUNT(up.part_num) AS unique_parts,
+    COUNT(lp.name) AS parts,
+    COUNT(up.part_num) / COUNT(lp.name) AS uniqueness 
+FROM 
+    lego_parts lp
+JOIN 
+    lego_part_categories lpc ON lp.part_cat_id = lpc.id
+JOIN 
+    lego_inventory_parts lip ON lp.part_num = lip.part_num
+JOIN 
+    lego_inventories li ON lip.inventory_id = li.id
+JOIN 
+    lego_sets ls ON li.set_num = ls.set_num
+LEFT JOIN 
+    lego_themes lt ON lt.id = ls.theme_id
+LEFT JOIN 
+    UNIQUE_PARTS up ON up.part_num = lp.part_num
+GROUP BY 
+    ls.name,
+    ls.year,
+    lt.name;
+
+select * from TIL_PORTFOLIO_PROJECTS.SHAHBAZ_SCHEMA.UNIQUE_SETS;
