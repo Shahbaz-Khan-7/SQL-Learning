@@ -27,3 +27,22 @@ Below are the solutions to the challenges i completed:
 |11|Which customers Are closest?|[📋](https://preppindata.blogspot.com/2023/03/2023-week-11-which-customers-are-closest.html)|[✅](https://github.com/Shahbaz-Khan-7/SQL-Learning/blob/main/preppin%20data%20week%2011%20challenge)| 1. Cross Joins 2. Math functions 3. Row Number Sorting|
 |12|Regulatory Reporting Alignment|[📋](https://preppindata.blogspot.com/2023/03/2023-week-12-regulatory-reporting.html)|[✅](https://github.com/Shahbaz-Khan-7/SQL-Learning/blob/main/preppin%20data%20week%2012%20challenge)| 1. Fill in blank rows 2. Manipulating dates 3. Running aggregations|
 </details>
+
+<a id="Data With Danny"></a><details>
+  <summary><h2>📅&nbsp;Data With Danny Case Studies</h2></summary>
+
+### Data With Danny &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span title="Return to table of contents"><a href="#contents">⬆️</a></span> 
+|Case Study #|Case Study &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|Descrip-<br>tion|My<br>Solution|<br>Techniques<br>Used|
+|-:|:-----------------------------------------|:-:|:-:|:-:|
+|3|Foodie-Fi|[📋](https://8weeksqlchallenge.com/case-study-3/)|[✅](https://github.com/Shahbaz-Khan-7/SQL-Learning/blob/main/Foodie%20Fi)| 1. CTE's 2. Case Statements 3. Cross join|
+|4|Data Bank|[📋](https://8weeksqlchallenge.com/case-study-4/)|[✅](https://github.com/Shahbaz-Khan-7/SQL-Learning/blob/main/Data%20bank)| 1. Aggregations 2. Joins 3. Order by/ Group by|
+</details>
+
+<a id="Summer of SQL"></a><details>
+  <summary><h2>📅&nbsp;Other SQL projects</h2></summary>
+
+### Summer of SQL &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span title="Return to table of contents"><a href="#contents">⬆️</a></span> 
+|#|Challenge&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|Descrip-<br>tion|My<br>Solution|<br>Techniques<br>Used|
+|-:|:-----------------------------------------|:-:|:-:|:-:|
+|1|Lego Creator|[📋](https://github.com/wjsutton/lego_analysis_challenge/tree/main)|[✅](https://github.com/Shahbaz-Khan-7/SQL-Learning/blob/main/Lego%20creator)| 1. Schema setup 2. ER diagrams 3. Primary and Foriegn Keys|
+</details>
